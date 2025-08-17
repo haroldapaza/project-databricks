@@ -1,0 +1,72 @@
+name: Databricks Notebook Deploy to QA
+
+on:
+  push:
+    branches:
+      - cert  
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v3
+
+    - name: Install jq & curl
+      run: sudo apt-get update && sudo apt-get install -y jq curl
+
+    - name: Export notebooks from DEV
+      run: |
+        ORIGIN_HOST=${{ secrets.DATABRICKS_ORIGEN_HOST }}
+        ORIGIN_TOKEN=${{ secrets.DATABRICKS_ORIGEN_TOKEN }}
+        NOTEBOOK_BASE="/Repos/haroldapaza.s1d_outlook.com#ext#@haroldapazas1doutlook.onmicrosoft.com/project-databricks/notebooks"
+        
+    
+        NOTEBOOKS=("01_bronze_ingest_sql_to_adls" "02_silver_transformations" "03_gold_serving_views" "security/00_create_catalog" "security/01_grands_dev")
+
+        mkdir -p notebooks_to_deploy
+
+        for nb in "${NOTEBOOKS[@]}"; do
+          file_name=$(basename "$nb")
+          echo "Exportando $nb en modo raw..."
+          curl -s -X GET \
+            -H "Authorization: Bearer $ORIGIN_TOKEN" \
+            "$ORIGIN_HOST/api/2.0/workspace/export?path=$NOTEBOOK_BASE/$nb&format=SOURCE&direct_download=true" \
+            --output "notebooks_to_deploy/$file_name.py"
+        done
+
+    - name: Deploy notebooks to QA Workspace
+      run: |
+        DEST_HOST=${{ secrets.DATABRICKS_ORIGEN_HOST_QA }}
+        DEST_TOKEN=${{ secrets.DATABRICKS_ORIGEN_TOKEN_QA }}
+        DEST_BASE="/Repos/project-databricks-qa/notebooks"
+
+        for file in notebooks_to_deploy/*.py; do
+          name=$(basename "$file" .py)
+          dest_path="$DEST_BASE/$name"
+
+          echo "Creando carpeta $DEST_BASE si no existe..."
+          curl -s -X POST \
+            -H "Authorization: Bearer $DEST_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"path\":\"$DEST_BASE\"}" \
+            "$DEST_HOST/api/2.0/workspace/mkdirs"
+
+          echo "Importando $file → $dest_path"
+          curl -s -X POST \
+            -H "Authorization: Bearer $DEST_TOKEN" \
+            -H "Content-Type: multipart/form-data" \
+            -F "path=$dest_path" \
+            -F "format=SOURCE" \
+            -F "language=PYTHON" \
+            -F "overwrite=true" \
+            -F "content=@$file" \
+            "$DEST_HOST/api/2.0/workspace/import"
+        done
+
+    - name: Clean up
+      run: rm -rf notebooks_to_deploy
+
+    - name: Done
+      run: echo "Todos los notebooks fueron desplegados en QA"
