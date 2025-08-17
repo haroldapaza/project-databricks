@@ -1,0 +1,57 @@
+resources:
+  jobs:
+    Nuevo_trabajo_16_ago_2025_19_22:
+      name: Nuevo trabajo 16 ago 2025, 19:22
+      tasks:
+        - task_key: Creacion_de_Catalogo
+          notebook_task:
+            notebook_path: /Repos/haroldapaza.s1d_outlook.com#ext#@haroldapazas1doutlook.onmicrosoft.com/project-databricks/security/00_create_catalog
+            base_parameters:
+              Adls: adlsproejectfinal1008
+              container: project1008
+            source: WORKSPACE
+          existing_cluster_id: 0816-174024-mu3bbgrm
+        - task_key: Grands
+          depends_on:
+            - task_key: Creacion_de_Catalogo
+          notebook_task:
+            notebook_path: /Repos/haroldapaza.s1d_outlook.com#ext#@haroldapazas1doutlook.onmicrosoft.com/project-databricks/security/01_grands_dev
+            source: WORKSPACE
+          existing_cluster_id: 0816-174024-mu3bbgrm
+        - task_key: Bronze
+          depends_on:
+            - task_key: Grands
+          notebook_task:
+            notebook_path: /Repos/haroldapaza.s1d_outlook.com#ext#@haroldapazas1doutlook.onmicrosoft.com/project-databricks/notebooks/01_bronze_ingest_sql_to_adls
+            base_parameters:
+              Adls: adlsproejectfinal1008
+              container: bronze
+            source: WORKSPACE
+          existing_cluster_id: 0816-174024-mu3bbgrm
+        - task_key: Silver
+          depends_on:
+            - task_key: Bronze
+          notebook_task:
+            notebook_path: /Repos/haroldapaza.s1d_outlook.com#ext#@haroldapazas1doutlook.onmicrosoft.com/project-databricks/notebooks/02_silver_transformations
+            base_parameters:
+              Adls: adlsproejectfinal1008
+              container: bronze
+              catalog: catalog_dev
+              container_s: silver
+            source: WORKSPACE
+          existing_cluster_id: 0816-174024-mu3bbgrm
+        - task_key: Golden
+          depends_on:
+            - task_key: Silver
+          notebook_task:
+            notebook_path: /Repos/haroldapaza.s1d_outlook.com#ext#@haroldapazas1doutlook.onmicrosoft.com/project-databricks/notebooks/03_gold_serving_views
+            base_parameters:
+              Adls: adlsproejectfinal1008
+              container: bronze
+              catalog: catalog_dev
+              container_s: silver
+              container_g: gold
+            source: WORKSPACE
+          existing_cluster_id: 0816-174024-mu3bbgrm
+      queue:
+        enabled: true
